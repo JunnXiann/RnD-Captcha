@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tencent CAPTCHA Demo</title>
+    <script src="https://ssl.captcha.qq.com/TCaptcha.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        #verify-btn {
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #verify-btn:hover {
+            background-color: #096dd9;
+        }
+        #verify-btn:disabled {
+            background-color: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .result.success {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+            display: block;
+        }
+        .result.error {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+            display: block;
+        }
+        .config-info {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .config-info p {
+            margin: 5px 0;
+        }
+        .config-info strong {
+            color: #1890ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Tencent CAPTCHA Demo</h1>
+        
+        <div class="config-info">
+            <p><strong>Backend API:</strong> <span id="api-url">http://localhost:8000</span></p>
+            <p><strong>Status:</strong> <span id="status">Checking...</span></p>
+        </div>
+
+        <div class="button-container">
+            <button id="verify-btn">Verify with CAPTCHA</button>
+        </div>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:8000';
+        const CAPTCHA_APP_ID = '2045229547'; // Replace with your App ID or use default for testing
+        
+        // Update API URL in UI
+        document.getElementById('api-url').textContent = API_URL;
+
+        // Check backend status
+        async function checkBackendStatus() {
+            try {
+                const response = await fetch(`${API_URL}/`);
+                const data = await response.json();
+                document.getElementById('status').textContent = data.mock_mode 
+                    ? '✅ Running (Mock Mode)' 
+                    : '✅ Running (Real Mode)';
+                document.getElementById('status').style.color = '#52c41a';
+            } catch (error) {
+                document.getElementById('status').textContent = '❌ Backend not reachable';
+                document.getElementById('status').style.color = '#ff4d4f';
+                console.error('Backend status check failed:', error);
+            }
+        }
+
+        // Show result message
+        function showResult(success, message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = success ? 'result success' : 'result error';
+            resultDiv.textContent = success 
+                ? `✅ ${message}` 
+                : `❌ ${message}`;
+        }
+
+        // Verify CAPTCHA with backend
+        async function verifyCaptchaWithBackend(ticket, randstr) {
+            try {
+                const response = await fetch(`${API_URL}/verify-captcha`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ticket: ticket,
+                        randstr: randstr
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showResult(true, data.message || 'CAPTCHA verification successful!');
+                } else {
+                    showResult(false, data.message || 'CAPTCHA verification failed!');
+                }
+            } catch (error) {
+                showResult(false, `Network error: ${error.message}`);
+                console.error('Verification error:', error);
+            }
+        }
+
+        // Initialize Tencent CAPTCHA
+        function initCaptcha() {
+            const button = document.getElementById('verify-btn');
+            
+            button.addEventListener('click', function() {
+                // Create captcha instance
+                const captcha = new TencentCaptcha(CAPTCHA_APP_ID, function(res) {
+                    console.log('CAPTCHA callback:', res);
+                    
+                    if (res.ret === 0) {
+                        // User completed CAPTCHA successfully
+                        console.log('CAPTCHA completed, verifying with backend...');
+                        verifyCaptchaWithBackend(res.ticket, res.randstr);
+                    } else if (res.ret === 2) {
+                        // User closed CAPTCHA
+                        showResult(false, 'CAPTCHA verification cancelled');
+                    } else {
+                        // Other error
+                        showResult(false, 'CAPTCHA error occurred');
+                    }
+                }, {});
+                
+                // Show CAPTCHA
+                captcha.show();
+            });
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            checkBackendStatus();
+            initCaptcha();
+        });
+    </script>
+</body>
+</html>
